@@ -1,0 +1,6 @@
+Jupyter notebook
+Python 3
+pandas version==0.22.0
+github3.py version==0.9.6
+
+Note: Gephi is a visualization program of complex networks
