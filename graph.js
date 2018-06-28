@@ -1,6 +1,6 @@
 var margin = {top: 30, right: 20, bottom: 20, left: 30}; 
-var width = 1000;
-var height = 650;
+var width = 820;
+var height = 520;
 var drawWidth = width - margin.left - margin.right; 
 var drawHeight = height - margin.top - margin.bottom; 
 
@@ -20,36 +20,42 @@ var svg = d3.select("body")
   .attr("height", height)
   .attr("transform", "translate(" + margin.left + "," + margin.top + ")")
   .append("g")
-  .call(d3.zoom()  // usa apenas o pan do zoom behavior
-  	.scaleExtent([1, 1])
-  	.on("zoom", function () {  // demo
-  		svg.attr("transform", d3.event.transform)
-    })
-  );
+  // falta o pan
 
 
-d3.csv("data/edges.csv", function(edges){
-  buildGraph(edges);
+// d3.csv("data/edges.csv", function(error, edges){	
+// 	if(error) { console.log(error); }		
+// 	buildGraph(edges);	
+// });
+
+
+d3.csv("data/edges.csv", function(error, edges){
+	d3.csv("data/gephi/node_data.csv", function(error, csv){
+		if(error) { console.log(error); }
+
+		var data = crossfilter(csv);
+		console.log(data.size());
+		buildGraph(edges, data);
+	});  
 });
 
+function buildGraph(edges,data){
 
-function buildGraph(edges){
+//function buildGraph(edges){
 	var nodes = {};
 	var links = edges;
 
-	var cScale = d3.scaleLinear()    	
-	  .domain([0,100])
-	  .range([10, 200]); 
+	var cScale = d3.scaleLinear().domain([1,80]).range([5, 20]); 
 
 	// zoom settings
 	var zoomCentered = null;
-	var zoomLevel = 3;
+	var zoomLevel = 2;
 
-	links.forEach(function(link) {
+	links.forEach(function(link) {	
 		link.source = nodes[link.source] ||
-			(nodes[link.source] = {user: link.source});			
+			(nodes[link.source] = {user: link.source });			
 		link.target = nodes[link.target] ||
-			(nodes[link.target] = {user: link.target});
+			(nodes[link.target] = {user: link.target });
 	});
 
 	var link = svg.append("g")
@@ -62,19 +68,54 @@ function buildGraph(edges){
 		.style("stroke-width", "2px")
 		.style("stroke-opacity", 0.7);
 
-	var node = svg.selectAll(".node")
+	var node = svg.append("g") 
+		.selectAll(".node")
 		.data(d3.values(nodes))
 		.enter()
 		.append("g")
 		.attr("class", "node")
-		.append("circle")	
+
+	var circle = node.append("circle")
 		.style("fill", "#5ac5d1")
 		.style("stroke", "white")	
 		//.attr("stroke-width", "1.5px")	
-		.style("r", d=>cScale(0.2*links.filter(e=>{
+		.attr("r", 
+			d=>cScale(3.14*links.filter(e=>{  // boa proporcao entre as areas
 			return e.source.user == d.user || e.target.user == d.user}).length
 		));  
-		
+	
+	// eventos 
+	node.attr("cursor", "zoom-in")
+		.on("click", clicked)  // contem zoom behavior
+		.call(d3.drag()
+			.on("start", ondragstart)
+			.on("drag", ondrag)
+			.on("end", ondragend))
+		.call(d3.zoom()  // pensando em usar apenas o pan do zoom behavior (e o zoom por nodes)
+		  	.scaleExtent([-1, 1])
+		  	.on("zoom", function () {  // demo
+		  		svg.attr("transform", d3.event.transform) })
+		 );
+
+	var labels = node.append("g")
+	 	.append("text")
+	    .attr("font-family", "Verdana")
+	    .attr("font-size", 10)
+		.attr("text-anchor", "middle") 
+	    .text(function(d) { return d.user; }); 
+
+	var force_dirGraph = d3.forceSimulation()			
+		.force("link", d3.forceLink(links)) //.id(function(d) { return d.id; }))
+		.force("charge", d3.forceManyBody())			
+		.force("center", d3.forceCenter(drawWidth/2, drawHeight/2))
+		//.force("radial",d3.forceRadial().radius(1.5))  // oculta caminhos indo para os nos de grau baixo, porem destaca clusters (a confirmar)
+		.force("collision", d3.forceCollide().radius(//25));
+			d=>(1.5*links.filter(e=>{
+			return e.source.user == d.user || e.target.user == d.user}).length)) );
+	    
+	force_dirGraph.nodes(d3.values(nodes))			
+		.on("tick", ticked);	
+
 	function clicked(d) {
 		var x;
 		var y;
@@ -102,25 +143,6 @@ function buildGraph(edges){
 		}			
 	}
 
-	// eventos 
-	node.attr("cursor", "zoom-in")
-		.on("click", clicked)  // contem zoom behavior
-		.call(d3.drag()
-			.on("start", ondragstart)
-			.on("drag", ondrag)
-			.on("end", ondragend));
-
-	var force_dirGraph = d3.forceSimulation()			
-		.force("link", d3.forceLink(links))
-		.force("charge", d3.forceManyBody())
-		.force("center", d3.forceCenter(width/2, height/2))
-		.force("collision",d3.forceCollide().radius(30));;
-	    
-	force_dirGraph.nodes(d3.values(nodes))			
-		.on("tick", ticked);
-	    
-	force_dirGraph.force("link").links(links);    
-
 	function ondragstart(d) {
 		if (!d3.event.active) force_dirGraph.alphaTarget(0.3).restart();
 		  d.fx = d.x;
@@ -140,13 +162,32 @@ function buildGraph(edges){
 	}	
 
 	function ticked() {	
-	node.attr("cx", function(d) { return d.x; })
-		.attr("cy", function(d) { return d.y; });
-			
+
 	link.attr("x1", function(d) { return d.source.x; })
 		.attr("y1", function(d) { return d.source.y; })
 		.attr("x2", function(d) { return d.target.x; })
 		.attr("y2", function(d) { return d.target.y; });
-	}
 		
-} 
+	circle.attr("cx", function(d) { return d.x; })
+		.attr("cy", function(d) { return d.y; });
+			
+	labels.attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; });
+	}
+
+
+// testes... __________________
+
+// var xScale = d3.scaleLinear().domain([]).range([0, drawWidth]);
+// var yScale = d3.scaleLinear().domain([]).range([0, drawHeight]);
+
+// function ticked() {	
+// 	node.attr("cx", function(d) { return xScale(d.x); })
+// 		.attr("cy", function(d) { return yScale(d.y); });
+			
+// 	link.attr("x1", function(d) { return xScale(d.source.x); })
+// 		.attr("y1", function(d) { return yScale(d.source.y); })
+// 		.attr("x2", function(d) { return xScale(d.target.x); })
+// 		.attr("y2", function(d) { return yScale(d.target.y); });
+// 	}
+		
+} // end
