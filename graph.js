@@ -1,8 +1,6 @@
 var margin = {top: 10, left: 30, bottom: 10, right: 20}; 
-var width = 800;
-var height = 520;
-var drawWidth = width - margin.left - margin.right; 
-var drawHeight = height - margin.top - margin.bottom; 
+var width = 800; // 1000
+var height = 520; // 650
 
 // zoom settings
 var scaleFactor = 0.25;
@@ -41,7 +39,7 @@ function buildGraph(edges,data_cf){
   var nodesConected = {};
   var nodes = []; 
 
-  var node_data_dm = data_cf.dimension(function(d,i){ 
+  var node_data_dm = data_cf.dimension(function(d){ 
     return d["User"];  }); 
   var node_data = node_data_dm.bottom(Infinity);
 
@@ -51,10 +49,10 @@ function buildGraph(edges,data_cf){
   var qtd = {};
     node_data.map(e=>{ 
     return qtd[e.Modularity_Class] = qtd[e.Modularity_Class] + 1 || 1  });
-  var colorScale = d3.scaleSequential(d3.interpolateCool).domain([-3, Object.keys(qtd).length]); // interpolateRainbow interpolateCool
+  var colorScale = d3.scaleSequential(d3.interpolateCool).domain([-3, d3.keys(qtd).length]); // interpolateRainbow interpolateCool
 
   var initialTransform =  d3.zoomIdentity.scale(1.5).translate(-140,-60);
-
+ 
   links.forEach(function(link) {	
 	  link.source = nodesConected[link.source] || 
       (nodesConected[link.source] = {User: link.source });			
@@ -64,11 +62,11 @@ function buildGraph(edges,data_cf){
 
   // var nodes = d3.values(nodesConected); 
   // ordenando
-  Object.keys(nodesConected)
+  d3.keys(nodesConected)
     .sort()
     .forEach(function(v, i) {      
       nodes[i] = nodesConected[v] 
-  });
+  });    
  
   var graph = svg.append("g")
 		.attr("class", "complexNetwork")
@@ -80,9 +78,9 @@ function buildGraph(edges,data_cf){
     .data(links)
     .enter()
     .append("line")
-    .style("stroke", "#c5a688")
-    .style("stroke-width", "2px")
-    .style("stroke-opacity", 0.7);
+    .style("stroke", "#c5a688") 
+    .style("stroke-width", "1px") // 2px
+    //.style("stroke-opacity", 0.7);
 
   var node = graph.append("g")
     .attr("class", "nodes") 
@@ -112,7 +110,7 @@ function buildGraph(edges,data_cf){
      
   forceDirGraph
     .force("charge", d3.forceManyBody())           
-    .force("center", d3.forceCenter(drawWidth / 2, drawHeight / 2))
+    .force("center", d3.forceCenter(width / 2, height / 2))
     //.force("radial",d3.forceRadial().radius(1.5)) 
     .force("collision", d3.forceCollide().radius((d,i)=>
       (3*parseInt(node_data[i].In_Degree) + 5/*normalizacao*/) ));
@@ -152,15 +150,17 @@ function buildGraph(edges,data_cf){
         level = 3*zoomLevel; 
         zoomCentered = d; 
 
-        update_zoom();
-        update_nodes();  // disable node
-        d3.select(this).select("circle").style("fill", "cyan");
+        zoom_update();
+        graph_update() ;
+        d3.select(this).select("circle").style("fill", "#74452d");
  				
       } else {
         x = width/2;
         y = height/2;
         level = 0.8*zoomLevel;
         zoomCentered = null;
+
+        links_update();
         d3.select(this).select("circle").style("fill", colorScale(
           parseInt(node_data[i].Modularity_Class)  ));
     	}
@@ -173,6 +173,8 @@ function buildGraph(edges,data_cf){
     } else {  
       d.fx = null;
       d.fy = null;
+
+      links_update();
       d3.select(this).select("circle").style("fill", colorScale(
           parseInt(node_data[i].Modularity_Class)  ));
     }  
@@ -184,22 +186,49 @@ function buildGraph(edges,data_cf){
 		// console.log(transform);
   } 
 
-  function update_zoom() {  
+  function zoom_update() {  
   	svg.transition()
       .duration(1000)
       .call(zoom_handler.transform, initialTransform);
 	}
 
-  function update_nodes() {
+  function graph_update() {
     upNodes = graph.selectAll("circle")
       .style("fill", (d,i)=>colorScale(
-      parseInt(node_data[i].Modularity_Class)  ))
+        parseInt(node_data[i].Modularity_Class)  ));
+    upLink = graph.selectAll("line")
+      .style("stroke", "#c5a688");
+  }
+
+  function links_update() {
+    upLink = graph.selectAll("line")
+      .style("stroke", "#c5a688");
+  }
+
+  function ego_net(user) {
+    var follower = false;
+
+    egoLink = graph.selectAll("line")
+      .style("stroke", d=>{
+        if(user == d.target.User){
+          follower = true;
+          return "#74452d"; // "red"; "#74452d";
+        } else if(user == d.source.User && !follower) {
+            return "#1c4d25"; // "orange" #1c4d25
+        } else {
+            // return "#dbc3aa"; // update enable || disable
+        }  });
   }
 
   function drag_start (d) {
-    if (!d3.event.active) forceDirGraph.alphaTarget(0.3).restart();    
+    if (!d3.event.active) 
+      forceDirGraph.alphaTarget(0.5).restart();    
       d.fx = d.x;
       d.fy = d.y;
+
+      links_update();      
+      d3.select(this).select("circle").style("fill", "#74452d");
+      ego_net(d.User); 
   }
    
   function drag_drag(d) {
@@ -211,8 +240,7 @@ function buildGraph(edges,data_cf){
   function drag_end(d) {
     if (!d3.event.active) forceDirGraph.alphaTarget(0);
     	d.fx = d.x;
-      d.fy = d.y;
-    d3.select(this).select("circle").style("fill", "cyan"); 
+      d.fy = d.y;        
   }
 
 	function tick_actions() {	
@@ -227,7 +255,7 @@ function buildGraph(edges,data_cf){
     label.attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; });
   }
 
-// heatmap(node_data);
+heatmap(node_data);
 
 console.log("node_data:", node_data);    
 }
