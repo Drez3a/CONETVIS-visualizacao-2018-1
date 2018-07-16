@@ -1,6 +1,6 @@
 var margin = {top: 10, left: 30, bottom: 10, right: 20}; 
-var width = 800; // 1000
-var height = 520; // 650
+var width = 850; // 1000
+var height = 550; // 650
 
 // zoom settings
 var scaleFactor = 0.25;
@@ -23,12 +23,22 @@ var svg = d3.select("body")
   .attr("height", height)
   .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
+var border = svg.append("rect")
+  .attr("height", height)
+  .attr("width", width)
+  .attr("x", 0)
+  .attr("y", 0) 
+  .attr("stroke", "grey")
+  .attr("fill", "none") 
+  .attr("stroke-width", "4px");
+
 
 // dataset
 d3.csv("data/edges.csv", function(error, edges){
   d3.csv("data/gephi/node_data.csv", function(error, csv){
   	if(error) { console.log(error); }
 		var data_cf = crossfilter(csv);
+    buildPainel();
 		buildGraph(edges, data_cf);
   });  
 });
@@ -41,18 +51,18 @@ function buildGraph(edges,data_cf){
 
   var node_data_dm = data_cf.dimension(function(d){ 
     return d["User"];  }); 
-  var node_data = node_data_dm.bottom(Infinity);
+  var node_data = node_data_dm.bottom(Infinity); 
 
   var interval = d3.extent(node_data,d=>parseInt(d.In_Degree));
   var rScale = d3.scaleLinear().domain(interval).range([5, 25]); 
 
   var qtd = {};
-    node_data.map(e=>{ 
+  node_data.map(e=>{ 
     return qtd[e.Modularity_Class] = qtd[e.Modularity_Class] + 1 || 1  });
   var colorScale = d3.scaleSequential(d3.interpolateCool).domain([-3, d3.keys(qtd).length]); // interpolateRainbow interpolateCool
 
-  var initialTransform =  d3.zoomIdentity.scale(1.5).translate(-140,-60);
- 
+  var initialTransform =  d3.zoomIdentity.scale(1.5).translate(-120,-60);
+
   links.forEach(function(link) {	
 	  link.source = nodesConected[link.source] || 
       (nodesConected[link.source] = {User: link.source });			
@@ -66,7 +76,14 @@ function buildGraph(edges,data_cf){
     .sort()
     .forEach(function(v, i) {      
       nodes[i] = nodesConected[v] 
-  });    
+  }); 
+
+  // normalizacao
+  node_data.forEach(function(d){   
+    // a principio adotei apenas os repositorios proprios
+    d.Repo_Owner = d.Repo_Owner.split(",");
+    d.oRepo_Language = d.oRepo_Language.split(",");  
+  });
  
   var graph = svg.append("g")
 		.attr("class", "complexNetwork")
@@ -79,9 +96,8 @@ function buildGraph(edges,data_cf){
     .enter()
     .append("line")
     .style("stroke", "#c5a688") 
-    .style("stroke-width", "1px") // 2px
-    //.style("stroke-opacity", 0.7);
-
+    .style("stroke-width", "1px");
+   
   var node = graph.append("g")
     .attr("class", "nodes") 
     .selectAll("nodes")
@@ -151,8 +167,11 @@ function buildGraph(edges,data_cf){
         zoomCentered = d; 
 
         zoom_update();
-        graph_update() ;
+        graph_update();
         d3.select(this).select("circle").style("fill", "#74452d");
+        
+        heatmap(node_data[i]);
+        console.log("Dados do usuario:", node_data[i]);
  				
       } else {
         x = width/2;
@@ -255,7 +274,7 @@ function buildGraph(edges,data_cf){
     label.attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; });
   }
 
-heatmap(node_data);
+// heatmap(node_data[2]);
 
 console.log("node_data:", node_data);    
 }
