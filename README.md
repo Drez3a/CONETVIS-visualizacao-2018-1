@@ -5,7 +5,7 @@ Projeto da disciplina de Visualização de Dados, professor Nivan Roberto - CIN/
 
 Rede de usuários recifenses e seus seguidores que também são recifenses, 
 onde é possível visualizar as linguagens que o usuário tem experiência e
-os repositórios próprios.
+os repositórios próprios.  
 Algoritmo force directed graph.
  
  [Sistema Web](https://drez3a.github.io/CONETVIS-visualizacao-2018-1/)
